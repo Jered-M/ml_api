@@ -55,7 +55,7 @@ if model is None:
 CLASSES = ["jered", "gracia", "Ben", "Leo"]
 
 # Seuil minimum pour accepter une reconnaissance
-THRESHOLD = 0.70  # 70%
+THRESHOLD = 0.50  # 50% (baissé pour permettre reconnaissance avec données limitées)
 
 @app.route('/', methods=['GET'])
 def index():
