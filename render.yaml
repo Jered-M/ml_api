@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: ml-api
+    env: python
+    region: us-east
+    plan: free
+    
+    # Démarrage de l'API
+    startCommand: "python app.py"
+    
+    # Variables d'environnement
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    
+    # Port
+    port: 5000
+    
+    # Healthcheck
+    healthCheckPath: /health
+    healthCheckInterval: 30
+    healthCheckTimeout: 20
+    
+    # Build
+    buildCommand: "pip install -r requirements.txt"
+    
+    # Redéploiement automatique
+    autoRedeploy: true

@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconnaissance Faciale - API</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .status {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .status.connected {
+            color: #4caf50;
+        }
+        
+        .status.disconnected {
+            color: #f44336;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+        }
+        
+        .section h2 {
+            color: #667eea;
+            font-size: 18px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        input[type="text"],
+        input[type="file"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus,
+        input[type="file"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .result {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+            border-left: 4px solid #667eea;
+        }
+        
+        .result.success {
+            background: #e8f5e9;
+            border-left-color: #4caf50;
+        }
+        
+        .result.error {
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+        
+        .result.warning {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+        
+        .result h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .result.success h3 {
+            color: #4caf50;
+        }
+        
+        .result.error h3 {
+            color: #f44336;
+        }
+        
+        .result.warning h3 {
+            color: #ff9800;
+        }
+        
+        .result p {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+        
+        .result strong {
+            color: #333;
+        }
+        
+        .confidence-bar {
+            background: #ddd;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .preview {
+            width: 100%;
+            max-width: 300px;
+            border-radius: 8px;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>👤 Reconnaissance Faciale</h1>
+        <div class="status connected" id="status">
+            ✓ API Connectée - http://localhost:5000
+        </div>
+        
+        <!-- Section Capture -->
+        <div class="section">
+            <h2>📷 Capturer une Photo</h2>
+            <div class="input-group">
+                <label for="camera">Webcam :</label>
+                <video id="video" width="100%" height="300" style="background: #000; border-radius: 8px; display: none; margin-bottom: 10px;"></video>
+                <div class="button-group">
+                    <button onclick="startCamera()">Démarrer Webcam</button>
+                    <button onclick="capturePhoto()">Capturer</button>
+                </div>
+            </div>
+            <img id="preview" class="preview" alt="Aperçu">
+        </div>
+        
+        <!-- Section Upload -->
+        <div class="section">
+            <h2>📁 Charger une Image</h2>
+            <div class="input-group">
+                <input type="file" id="imageFile" accept="image/*" onchange="previewImage()">
+            </div>
+            <button onclick="recognizeFromFile()">Reconnaître</button>
+        </div>
+        
+        <!-- Section Enregistrement -->
+        <div class="section">
+            <h2>💾 Enregistrer un Visage</h2>
+            <div class="input-group">
+                <label for="personName">Nom :</label>
+                <input type="text" id="personName" placeholder="Entrez le nom">
+            </div>
+            <div class="input-group">
+                <label>Photo :</label>
+                <p style="color: #666; font-size: 14px;">Utilisez une photo capturée ou chargée</p>
+            </div>
+            <button onclick="registerFace()">Enregistrer le Visage</button>
+        </div>
+        
+        <!-- Résultat -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            Traitement en cours...
+        </div>
+        <div class="result" id="result"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000';
+        let currentImageBase64 = null;
+        let canvas = null;
+        
+        // Vérifier la connexion API
+        fetch(`${API_URL}/health`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('status').textContent = `✓ API Connectée - ${API_URL}`;
+                document.getElementById('status').classList.add('connected');
+            })
+            .catch(() => {
+                document.getElementById('status').textContent = `✗ Impossible de se connecter - ${API_URL}`;
+                document.getElementById('status').classList.add('disconnected');
+                showResult('error', 'Erreur', 'Impossible de se connecter à l\'API');
+            });
+        
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+        
+        function showResult(type, title, message, details = '') {
+            const result = document.getElementById('result');
+            result.className = `result ${type}`;
+            result.style.display = 'block';
+            result.innerHTML = `
+                <h3>${title}</h3>
+                <p>${message}</p>
+                ${details}
+            `;
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+        
+        function startCamera() {
+            const video = document.getElementById('video');
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.style.display = 'block';
+                })
+                .catch(err => {
+                    showResult('error', 'Erreur', `Impossible d'accéder à la webcam: ${err.message}`);
+                });
+        }
+        
+        function capturePhoto() {
+            const video = document.getElementById('video');
+            if (!video.srcObject) {
+                showResult('error', 'Erreur', 'Démarrez d\'abord la webcam');
+                return;
+            }
+            
+            canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            currentImageBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
+            document.getElementById('preview').src = canvas.toDataURL('image/jpeg');
+            document.getElementById('preview').style.display = 'block';
+            
+            showResult('success', '✓ Photo capturée', 'Prête pour la reconnaissance ou l\'enregistrement');
+        }
+        
+        function previewImage() {
+            const file = document.getElementById('imageFile').files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentImageBase64 = e.target.result.split(',')[1];
+                document.getElementById('preview').src = e.target.result;
+                document.getElementById('preview').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function recognizeFromFile() {
+            const formData = new FormData();
+            const file = document.getElementById('imageFile').files[0];
+            if (!file) {
+                showResult('error', 'Erreur', 'Sélectionnez une image d\'abord');
+                return;
+            }
+            
+            showLoading(true);
+            formData.append('image', file);
+            
+            fetch(`${API_URL}/recognize-file`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                showLoading(false);
+                if (data.success) {
+                    const bar = `<div class="confidence-bar"><div class="confidence-fill" style="width: ${data.percentage}%">${data.percentage}%</div></div>`;
+                    showResult('success', `✓ ${data.name}`, `Reconnaissance réussie`, `<strong>Confiance:</strong> ${data.percentage}%${bar}`);
+                } else {
+                    showResult('warning', '⚠️ Inconnu', data.error || 'Impossible de reconnaître le visage', `<strong>Confiance:</strong> ${data.percentage}%`);
+                }
+            })
+            .catch(err => {
+                showLoading(false);
+                showResult('error', 'Erreur', `Erreur API: ${err.message}`);
+            });
+        }
+        
+        function registerFace() {
+            if (!currentImageBase64) {
+                showResult('error', 'Erreur', 'Capturez ou chargez une image d\'abord');
+                return;
+            }
+            
+            const name = document.getElementById('personName').value.trim();
+            if (!name) {
+                showResult('error', 'Erreur', 'Entrez un nom');
+                return;
+            }
+            
+            showLoading(true);
+            
+            fetch(`${API_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: name,
+                    image: currentImageBase64
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                showLoading(false);
+                if (data.success) {
+                    showResult('success', '✓ Enregistré', `Le visage de ${name} a été enregistré avec succès`);
+                    document.getElementById('personName').value = '';
+                } else {
+                    showResult('error', 'Erreur', data.error || 'Impossible d\'enregistrer le visage');
+                }
+            })
+            .catch(err => {
+                showLoading(false);
+                showResult('error', 'Erreur', `Erreur API: ${err.message}`);
+            });
+        }
+    </script>
+</body>
+</html>
