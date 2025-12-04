@@ -56,7 +56,6 @@ CLASSES = ["jered", "gracia", "Ben", "Leo"]
 
 # Seuil minimum pour accepter une reconnaissance
 THRESHOLD = 0.50  # 50% (baissé pour permettre reconnaissance avec données limitées)
-# Force redeploy - v2
 
 @app.route('/', methods=['GET'])
 def index():
@@ -102,12 +101,18 @@ def recognize_face():
         
         # Décoder l'image
         logger.info("Décodage de l'image...")
+        
+        # Nettoyer le préfixe data:image si présent
+        if ',' in image_base64:
+            image_base64 = image_base64.split(',')[1]
+        
         image_data = base64.b64decode(image_base64)
         img = Image.open(io.BytesIO(image_data)).convert("RGB")
         
         # Redimensionner à 224x224 (taille attendue par le modèle)
         img = img.resize((224, 224))
-        logger.info("Image redimensionnée: 224x224")
+        logger.info(f"Image redimensionnée: 224x224 - Mode: {img.mode}")
+        logger.info(f"Image dtype: {np.array(img).dtype}")
         
         return process_image(img)
         
