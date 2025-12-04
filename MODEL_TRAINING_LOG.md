@@ -1,15 +1,15 @@
 # Face Recognition Model - Training Log
 
-## Latest Model Version
+## Latest Model Version (v2 - Balanced Dataset)
 **Date:** 4 December 2025  
-**Status:** ✅ Production Ready
+**Status:** ✅ Production Ready - 100% Accuracy
 
 ### Training Statistics
-- **Total Images:** 1,920
-  - Ben: 504 images
-  - Jered: 488 images
-  - Leo: 503 images
-  - Gracia: 425 images (includes 31 converted HEIC files)
+- **Total Images:** 2,600 (perfectly balanced)
+  - Ben: 650 images
+  - Jered: 650 images (with brightness augmentation for dark images)
+  - Leo: 650 images
+  - Gracia: 650 images (with brightness augmentation)
 
 - **Dataset Split:** 80/20
   - Training: 1,536 images
