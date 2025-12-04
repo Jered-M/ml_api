@@ -8,6 +8,9 @@ import base64
 import logging
 from datetime import datetime
 import os
+import threading
+import time
+import requests
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
@@ -56,6 +59,75 @@ CLASSES = ["jered", "gracia", "Ben", "Leo"]
 
 # Seuil minimum pour accepter une reconnaissance
 THRESHOLD = 0.50  # 50% (baissé pour permettre reconnaissance avec données limitées)
+
+# ============================================================================
+# 🔄 KEEP-ALIVE: Maintenir l'API active sur Render
+# ============================================================================
+
+keep_alive_active = True
+keep_alive_thread = None
+API_BASE_URL = None
+
+def determine_api_url():
+    """Déterminer l'URL de l'API"""
+    # En production sur Render
+    if 'RENDER' in os.environ:
+        return "https://ml-api-3jf9.onrender.com"
+    # En local
+    else:
+        return "http://localhost:5000"
+
+def keep_alive_self_ping():
+    """Ping l'API lui-même toutes les 30 secondes pour éviter le sleep sur Render"""
+    global keep_alive_active
+    
+    logger.info("=" * 70)
+    logger.info("🔄 KEEP-ALIVE DÉMARRÉ")
+    logger.info(f"   URL: {API_BASE_URL}")
+    logger.info("   Intervalle: 30 secondes")
+    logger.info("   But: Éviter le suspension de l'API sur Render (free tier)")
+    logger.info("=" * 70)
+    
+    ping_count = 0
+    while keep_alive_active:
+        try:
+            # Attendre 30 secondes
+            time.sleep(30)
+            
+            # Envoyer un ping
+            start_time = time.time()
+            response = requests.get(f"{API_BASE_URL}/health", timeout=10)
+            elapsed = time.time() - start_time
+            ping_count += 1
+            
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            status = "✅" if response.status_code == 200 else "⚠️"
+            
+            logger.info(f"[{timestamp}] 🔄 Ping #{ping_count}: {status} Status {response.status_code} ({elapsed:.2f}s)")
+            
+        except Exception as e:
+            logger.warning(f"[{datetime.now().strftime('%H:%M:%S')}] ⚠️ Ping failed: {str(e)[:50]}")
+
+def start_keep_alive():
+    """Démarrer le keep-alive en arrière-plan"""
+    global keep_alive_active, keep_alive_thread, API_BASE_URL
+    
+    API_BASE_URL = determine_api_url()
+    
+    if keep_alive_thread is None or not keep_alive_thread.is_alive():
+        keep_alive_active = True
+        keep_alive_thread = threading.Thread(target=keep_alive_self_ping, daemon=True)
+        keep_alive_thread.start()
+        logger.info("✅ Keep-Alive ping thread lancé en arrière-plan")
+    else:
+        logger.info("⚠️ Keep-Alive déjà actif")
+
+def stop_keep_alive():
+    """Arrêter le keep-alive"""
+    global keep_alive_active
+    keep_alive_active = False
+    logger.info("❌ Keep-Alive ping arrêté")
+
 
 @app.route('/', methods=['GET'])
 def index():
@@ -342,6 +414,9 @@ if __name__ == '__main__':
     print("  ✓ POST http://localhost:5000/recognize")
     print("  ✓ GET  http://localhost:5000/employees")
     print("=" * 60)
+    
+    # Démarrer le keep-alive
+    start_keep_alive()
     
     app.run(
         host='0.0.0.0',
