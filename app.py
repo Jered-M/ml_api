@@ -399,6 +399,135 @@ def test_endpoint():
         "timestamp": datetime.now().isoformat()
     }), 200
 
+@app.route('/train', methods=['POST'])
+def train_model():
+    """
+    Entraîner le modèle avec les images disponibles
+    Endpoint de maintenance - à appeler après ajout de nouvelles images
+    """
+    try:
+        logger.info("=" * 70)
+        logger.info("🚀 DEBUT DE L'ENTRAINEMENT DU MODELE")
+        logger.info("=" * 70)
+        
+        from sklearn.model_selection import train_test_split
+        from tensorflow.keras.utils import to_categorical
+        
+        # Chemin du dataset
+        face_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "face1")
+        
+        logger.info(f"Dataset: {face_dir}")
+        
+        # Charger les images
+        X = []
+        y = []
+        
+        for label, person in enumerate(CLASSES):
+            person_dir = os.path.join(face_dir, person)
+            if not os.path.exists(person_dir):
+                logger.warning(f"Dossier non trouvé: {person_dir}")
+                continue
+            
+            images = [f for f in os.listdir(person_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+            logger.info(f"Chargement: {person} ({len(images)} images)")
+            
+            for img_file in images:
+                img_path = os.path.join(person_dir, img_file)
+                try:
+                    img = Image.open(img_path)
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    img = img.resize((224, 224))
+                    img_array = np.array(img).astype("float32") / 255.0
+                    X.append(img_array)
+                    y.append(label)
+                except Exception as e:
+                    logger.warning(f"Erreur avec {img_file}: {e}")
+        
+        X = np.array(X)
+        y = np.array(y)
+        
+        total_images = len(X)
+        logger.info(f"Total images chargées: {total_images}")
+        
+        if total_images < 100:
+            return jsonify({
+                "success": False,
+                "error": f"Pas assez d'images pour entraîner ({total_images} < 100)"
+            }), 400
+        
+        # Train/Test split
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, shuffle=True, random_state=42
+        )
+        
+        y_train_cat = to_categorical(y_train, num_classes=len(CLASSES))
+        y_test_cat = to_categorical(y_test, num_classes=len(CLASSES))
+        
+        logger.info(f"Train: {len(X_train)}, Test: {len(X_test)}")
+        
+        # Créer et entraîner le modèle
+        import tensorflow as tf
+        
+        base = tf.keras.applications.MobileNetV2(
+            input_shape=(224, 224, 3),
+            include_top=False,
+            weights='imagenet'
+        )
+        base.trainable = False
+        
+        new_model = tf.keras.Sequential([
+            base,
+            tf.keras.layers.GlobalAveragePooling2D(),
+            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dropout(0.4),
+            tf.keras.layers.Dense(len(CLASSES), activation='softmax')
+        ])
+        
+        new_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+        
+        logger.info("Entraînement en cours (15 epochs)...")
+        history = new_model.fit(
+            X_train, y_train_cat,
+            validation_data=(X_test, y_test_cat),
+            epochs=15,
+            batch_size=32,
+            verbose=0
+        )
+        
+        # Évaluer
+        final_accuracy = history.history['val_accuracy'][-1]
+        logger.info(f"Accuracy final: {final_accuracy*100:.2f}%")
+        
+        # Sauvegarder le modèle
+        model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "face.h5")
+        new_model.save(model_path)
+        logger.info(f"Modèle sauvegardé: {model_path}")
+        
+        # Recharger le modèle global
+        global model
+        model = tf.keras.models.load_model(model_path)
+        logger.info("Modèle rechargé en mémoire")
+        
+        logger.info("=" * 70)
+        logger.info("✅ ENTRAINEMENT TERMINE")
+        logger.info("=" * 70)
+        
+        return jsonify({
+            "success": True,
+            "message": "Modele entraine avec succes",
+            "total_images": total_images,
+            "final_accuracy": float(final_accuracy),
+            "accuracy_percent": f"{final_accuracy*100:.2f}%"
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur entrainement: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 if __name__ == '__main__':
     print("=" * 60)
     print("🚀 Face Recognition API - TensorFlow")
