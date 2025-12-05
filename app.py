@@ -413,10 +413,31 @@ def train_model():
         from sklearn.model_selection import train_test_split
         from tensorflow.keras.utils import to_categorical
         
-        # Chemin du dataset
-        face_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "face1")
+        # Chemin du dataset - essayer plusieurs emplacements
+        possible_face_dirs = [
+            # Render
+            "/app/face1",
+            # Local development
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "face1"),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "face1"),
+            "face1"
+        ]
         
-        logger.info(f"Dataset: {face_dir}")
+        face_dir = None
+        for path in possible_face_dirs:
+            if os.path.exists(path):
+                face_dir = path
+                logger.info(f"✅ Dataset trouvé: {face_dir}")
+                break
+        
+        if not face_dir:
+            logger.error(f"Dataset non trouvé aux chemins: {possible_face_dirs}")
+            return jsonify({
+                "success": False,
+                "error": f"Dossier face1 non trouvé. Chemins testés: {possible_face_dirs}"
+            }), 400
+        
+        logger.info(f"Utilisation du dataset: {face_dir}")
         
         # Charger les images
         X = []
@@ -429,7 +450,7 @@ def train_model():
                 continue
             
             images = [f for f in os.listdir(person_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
-            logger.info(f"Chargement: {person} ({len(images)} images)")
+            logger.info(f"  {person}: {len(images)} images")
             
             for img_file in images:
                 img_path = os.path.join(person_dir, img_file)
@@ -442,13 +463,13 @@ def train_model():
                     X.append(img_array)
                     y.append(label)
                 except Exception as e:
-                    logger.warning(f"Erreur avec {img_file}: {e}")
+                    logger.warning(f"  Erreur avec {img_file}: {e}")
         
         X = np.array(X)
         y = np.array(y)
         
         total_images = len(X)
-        logger.info(f"Total images chargées: {total_images}")
+        logger.info(f"✅ Total images chargées: {total_images}")
         
         if total_images < 100:
             return jsonify({
@@ -464,11 +485,9 @@ def train_model():
         y_train_cat = to_categorical(y_train, num_classes=len(CLASSES))
         y_test_cat = to_categorical(y_test, num_classes=len(CLASSES))
         
-        logger.info(f"Train: {len(X_train)}, Test: {len(X_test)}")
+        logger.info(f"  Train: {len(X_train)}, Test: {len(X_test)}")
         
         # Créer et entraîner le modèle
-        import tensorflow as tf
-        
         base = tf.keras.applications.MobileNetV2(
             input_shape=(224, 224, 3),
             include_top=False,
@@ -486,7 +505,7 @@ def train_model():
         
         new_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
         
-        logger.info("Entraînement en cours (15 epochs)...")
+        logger.info("⏳ Entraînement en cours (15 epochs)...")
         history = new_model.fit(
             X_train, y_train_cat,
             validation_data=(X_test, y_test_cat),
@@ -497,17 +516,35 @@ def train_model():
         
         # Évaluer
         final_accuracy = history.history['val_accuracy'][-1]
-        logger.info(f"Accuracy final: {final_accuracy*100:.2f}%")
+        logger.info(f"✅ Accuracy final: {final_accuracy*100:.2f}%")
         
-        # Sauvegarder le modèle
-        model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "face.h5")
-        new_model.save(model_path)
-        logger.info(f"Modèle sauvegardé: {model_path}")
+        # Sauvegarder le modèle - chercher le meilleur emplacement
+        model_save_paths = [
+            "/app/face.h5",
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "face.h5"),
+        ]
+        
+        model_path = None
+        for path in model_save_paths:
+            try:
+                new_model.save(path)
+                model_path = path
+                logger.info(f"✅ Modèle sauvegardé: {path}")
+                break
+            except Exception as e:
+                logger.warning(f"Impossible de sauvegarder en {path}: {e}")
+        
+        if not model_path:
+            logger.error("Impossible de sauvegarder le modèle")
+            return jsonify({
+                "success": False,
+                "error": "Impossible de sauvegarder le modèle"
+            }), 500
         
         # Recharger le modèle global
         global model
         model = tf.keras.models.load_model(model_path)
-        logger.info("Modèle rechargé en mémoire")
+        logger.info("✅ Modèle rechargé en mémoire")
         
         logger.info("=" * 70)
         logger.info("✅ ENTRAINEMENT TERMINE")
@@ -523,6 +560,8 @@ def train_model():
         
     except Exception as e:
         logger.error(f"❌ Erreur entrainement: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({
             "success": False,
             "error": str(e)
